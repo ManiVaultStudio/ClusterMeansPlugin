@@ -75,7 +75,7 @@ void ClusterMeansPlugin::transform()
 
     size_t numClusterIDs = unique_elements.size();
 
-    mv::Datasets parents;
+    mv::Datasets possibleParents;
     for (auto parentItem : clusterData->getDataHierarchyItem().getAncestors())
     {
         if (parentItem == nullptr)
@@ -87,15 +87,38 @@ void ClusterMeansPlugin::transform()
         if (parentDataset.getDataset()->getDataType() != PointType || !parentDataset.getDataset()->isFull())
             continue;
 
-        auto parentPoint = mv::Dataset<Points>(parentDataset);
-        if (parentPoint->getNumPoints() != numClusterIDs)
+        const auto parentPoints = mv::Dataset<Points>(parentDataset);
+        if (parentPoints.isValid() && parentPoints->getNumPoints() != numClusterIDs)
             continue;
 
-        parents << parentDataset;
+        possibleParents << parentDataset;
+    }
+
+    // datasets with the same selection group index as one of the parents might also be interesting
+    DenseSet selectionGroupIDs;
+    for (const auto& possibleParent : possibleParents)
+        if (possibleParent->getGroupIndex() >= 0)
+            selectionGroupIDs.insert(possibleParent->getGroupIndex());
+
+    if (selectionGroupIDs.size() > 0) {
+        for (const auto& selectionGroupID : selectionGroupIDs) {
+            for (const auto& dataset : mv::data().getAllDatasets()) {
+                if (dataset->getGroupIndex() == selectionGroupID && dataset.getDataset()->getDataType() == PointType) {
+                    const auto datasetPoints = mv::Dataset<Points>(dataset);
+                    if (datasetPoints.isValid() && datasetPoints->getNumPoints() != numClusterIDs)
+                        continue;
+
+                    if (possibleParents.contains(dataset))
+                        continue;
+
+                    possibleParents << dataset;
+                }
+            }
+        }
     }
 
     // Ask user for dataset
-    SelectInputDataDialog inputDialog(nullptr, parents);
+    SelectInputDataDialog inputDialog(nullptr, possibleParents);
     inputDialog.setModal(true);
 
     // open dialog and wait for user input
