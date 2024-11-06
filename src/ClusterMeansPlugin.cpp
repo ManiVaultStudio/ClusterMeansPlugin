@@ -1,21 +1,24 @@
 #include "ClusterMeansPlugin.h"
 
+#include <ClusterData/Cluster.h>
 #include <ClusterData/ClusterData.h>
 #include <PointData/PointData.h>
 #include <CoreInterface.h>
 #include <Dataset.h>
 #include <DataType.h>
+#include <LinkedData.h>
 
 #include <ankerl/unordered_dense.h>
 
-#include <cmath>
-#include <cstdint>
-#include <utility>
-
-#include <QString>
-#include <vector>
-#include <LinkedData.h>
 #include <cassert>
+#include <cmath>        // sqrt
+#include <cstdint>
+#include <utility>      // move
+#include <vector>
+
+#include <QList>
+#include <QString>
+#include <QVector>
 
 using DenseSet = ankerl::unordered_dense::set<std::int32_t>;
 
@@ -197,22 +200,14 @@ void ClusterMeansPlugin::transform()
 
         assert(means.size() == numDims * numClusters);
 
-        // Add selection map
-        mv::SelectionMap mappingToData;
-        auto& selectionMapData = mappingToData.getMap();
+        // Add selection maps
+        mv::SelectionMap selectionMapMeansToParents;
+        auto& mapMeansToParents = selectionMapMeansToParents.getMap();
 
         for (size_t clusterID = 0; clusterID < numClusters; clusterID++)
-            selectionMapData[clusterID] = clusters[clusterID].getIndices();
+            mapMeansToParents[clusterID] = clusters[clusterID].getIndices();
 
-        meansData->addLinkedData(parentDataset, mappingToData);
-
-        //mv::SelectionMap mappingToClusters;
-        //auto& selectionMapClusters = mappingToClusters.getMap();
-
-        //for (uint32_t clusterID = 0; clusterID < static_cast<uint32_t>(numClusters); clusterID++)
-        //    selectionMapClusters[clusterID] = { clusterID };
-
-        //clusterData->addLinkedData(meansData, mappingToClusters);
+        meansData->addLinkedData(parentDataset, selectionMapMeansToParents);
 
         // Publish data
         meansData->setData(std::move(means), numDims);
