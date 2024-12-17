@@ -79,7 +79,8 @@ void ClusterMeansPlugin::transform()
 
     if (getGetUniqueAndDuplicates(clusterData, unique_elements))
     {
-        qDebug() << "Contains duplicate IDs";
+        qDebug() << "Contains duplicate IDs, cannot create means data";
+        return;
     }
 
     size_t numClusterIDs = unique_elements.size();
