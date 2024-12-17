@@ -31,9 +31,14 @@ public:
         return _parentsAction.getCurrentDataset();
     }
 
+    bool assignToPoints() {
+        return _assignToPointsAction.isChecked();
+    }
+
 private:
     mv::gui::DatasetPickerAction    _parentsAction;
     mv::gui::TriggerAction          _loadAction;
+    mv::gui::ToggleAction           _assignToPointsAction;
     mv::gui::GroupAction            _groupAction;
 };
 

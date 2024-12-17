@@ -28,13 +28,17 @@ SelectInputDataDialog::SelectInputDataDialog(QWidget* parentWidget, const mv::Da
     QDialog(parentWidget),
     _parentsAction(this, "Dataset"),
     _loadAction(this, "Create Dataset"),
+    _assignToPointsAction(this, "Assign to parent points"),
     _groupAction(this, "Settings")
 {
     setWindowTitle(tr("Compute means from..."));
 
     _parentsAction.setDatasets(parents);
 
+    _assignToPointsAction.setToolTip("If toggled, the ouput data will have\nthe same number of points as the input,\notherwise the number of clusters.");
+
     _groupAction.addAction(&_parentsAction);
+    _groupAction.addAction(&_assignToPointsAction);
     _groupAction.addAction(&_loadAction);
 
     auto layout = new QVBoxLayout();
@@ -199,26 +203,70 @@ void ClusterMeansPlugin::transform()
         }
 
         // Create new output
-        Dataset<Points> meansData = mv::data().createDataset<Points>("Points", parentDataset->getGuiName() + " Means", parentDataset);
+        Dataset<Points> meansData;
+        const auto meansDataName = parentDataset->getGuiName() + " Means";
 
-        // Get means from clusters
         std::vector<float> means;
-        for (const auto& cluster : clusters)
+
+        if (inputDialog.assignToPoints())
         {
-            const auto& avgs = cluster.getMean();
-            means.insert(means.end(), avgs.begin(), avgs.end());
+            Dataset<Points> directParent = clusterData->getParent<Points>();
+            const auto numPointsDirectParent = directParent->getNumPoints();
+
+            meansData = mv::data().createDerivedDataset<Points>(meansDataName, directParent);
+            means.resize(static_cast<size_t>(numDims) * numPointsDirectParent);
+
+            const std::vector<mv::LinkedData>& linkedData = directParent->getLinkedData();
+            bool useLinkedData = !linkedData.empty() && linkedData[0].getTargetDataset() == parentDataset;
+
+            if (useLinkedData)
+            {
+                const auto& map = linkedData[0].getMapping().getMap();
+
+                for (const auto& cluster : clusters)
+                {
+                    const auto& avgs = cluster.getMean();
+                    for (const auto& globalID : cluster.getIndices())
+                        for (const auto& localID : map[globalID])
+                            std::copy(avgs.begin(), avgs.end(), means.data() + localID * numDims);
+
+                }
+
+            }
+            else
+            {
+                for (const auto& cluster : clusters)
+                {
+                    const auto& avgs = cluster.getMean();
+                    for (const auto& id : cluster.getIndices())
+                        std::copy(avgs.begin(), avgs.end(), means.data() + id * numDims);
+
+                }
+            }
+
         }
+        else
+        {
+            meansData = mv::data().createDataset<Points>("Points", meansDataName, parentDataset);
 
-        assert(means.size() == numDims * numClusters);
+            // Get means from clusters
+            for (const auto& cluster : clusters)
+            {
+                const auto& avgs = cluster.getMean();
+                means.insert(means.end(), avgs.begin(), avgs.end());
+            }
 
-        // Add selection maps
-        mv::SelectionMap selectionMapMeansToParents;
-        auto& mapMeansToParents = selectionMapMeansToParents.getMap();
+            assert(means.size() == numDims * numClusters);
 
-        for (size_t clusterID = 0; clusterID < numClusters; clusterID++)
-            mapMeansToParents[clusterID] = clusters[clusterID].getIndices();
+            // Add selection maps
+            mv::SelectionMap selectionMapMeansToParents;
+            auto& mapMeansToParents = selectionMapMeansToParents.getMap();
 
-        meansData->addLinkedData(parentDataset, selectionMapMeansToParents);
+            for (size_t clusterID = 0; clusterID < numClusters; clusterID++)
+                mapMeansToParents[clusterID] = clusters[clusterID].getIndices();
+
+            meansData->addLinkedData(parentDataset, selectionMapMeansToParents);
+        }
 
         // Publish data
         meansData->setData(std::move(means), numDims);
