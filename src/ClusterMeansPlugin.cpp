@@ -59,14 +59,20 @@ void ClusterMeansPlugin::transform()
 
     // check if data set covers base data completely and fully
     DenseSet unique_elements;
-    auto getGetUniqueAndDuplicates = [](const mv::Dataset<Clusters>& clusterData, DenseSet& unique_elements) -> bool
+    size_t maxDataID = 0;
+
+    auto getGetUniqueAndDuplicates = [&maxDataID](const mv::Dataset<Clusters>& clusterData, DenseSet& unique_elements) -> bool
         {
             for (const auto& cluster : clusterData->getClusters()) {
                 for (const auto id : cluster.getIndices())
-                    if (!unique_elements.insert(id).second) {
-                        // Insert failed, indicating a duplicate
+                {
+                    if(id > maxDataID)
+                        maxDataID = id;
+
+                    // Insert failed, indicating a duplicate
+                    if (!unique_elements.insert(id).second)
                         return true;
-                    }
+                }
             }
             return false;
         };
@@ -91,7 +97,11 @@ void ClusterMeansPlugin::transform()
             continue;
 
         const auto parentPoints = mv::Dataset<Points>(parentDataset);
-        if (parentPoints.isValid() && parentPoints->getNumPoints() != numClusterIDs)
+        if (!parentPoints.isValid())
+            continue;
+
+        auto numDataPoints = parentPoints->getNumPoints();
+        if (numDataPoints != numClusterIDs && numDataPoints < maxDataID)
             continue;
 
         possibleParents << parentDataset;
