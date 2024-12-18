@@ -20,9 +20,9 @@
 #include <utility>      // move
 #include <vector>
 
+#include <QDebug>
 #include <QList>
 #include <QString>
-#include <QtLogging>
 #include <QVector>
 
 using HashUInt32 = ankerl::unordered_dense::hash<std::uint32_t>;
