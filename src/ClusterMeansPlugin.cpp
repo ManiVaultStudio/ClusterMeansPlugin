@@ -3,6 +3,8 @@
 #include <ClusterData/Cluster.h>
 #include <ClusterData/ClusterData.h>
 #include <PointData/PointData.h>
+
+#include <actions/DatasetPickerAction.h>
 #include <CoreInterface.h>
 #include <Dataset.h>
 #include <DataType.h>
@@ -13,14 +15,19 @@
 #include <cassert>
 #include <cmath>        // sqrt
 #include <cstdint>
+#include <exception>
+#include <map>
 #include <utility>      // move
 #include <vector>
 
+#include <QDebug>
 #include <QList>
 #include <QString>
 #include <QVector>
 
-using DenseSet = ankerl::unordered_dense::set<std::int32_t>;
+using HashUInt32 = ankerl::unordered_dense::hash<std::uint32_t>;
+using DenseSet = ankerl::unordered_dense::set<std::uint32_t, HashUInt32>;
+using HashMap = ankerl::unordered_dense::map<std::uint32_t, std::uint32_t, HashUInt32>;
 
 Q_PLUGIN_METADATA(IID "studio.manivault.ClusterMeansPlugin")
 
@@ -28,19 +35,29 @@ SelectInputDataDialog::SelectInputDataDialog(QWidget* parentWidget, const mv::Da
     QDialog(parentWidget),
     _parentsAction(this, "Dataset"),
     _loadAction(this, "Create Dataset"),
+    _assignToDirectParentAction(this, "Assign to immediate parent data"),
     _groupAction(this, "Settings")
 {
     setWindowTitle(tr("Compute means from..."));
 
     _parentsAction.setDatasets(parents);
 
+    _assignToDirectParentAction.setToolTip("If toggled, the ouput data will have\nthe same number of points as the input,\notherwise the number of clusters.");
+
+    _loadAction.setEnabled(false);
+
     _groupAction.addAction(&_parentsAction);
+    _groupAction.addAction(&_assignToDirectParentAction);
     _groupAction.addAction(&_loadAction);
 
     auto layout = new QVBoxLayout();
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(_groupAction.createWidget(this));
     setLayout(layout);
+
+    connect(&_parentsAction, &mv::gui::DatasetPickerAction::datasetPicked, this, [this]() {
+        _loadAction.setEnabled(_parentsAction.getCurrentDataset().isValid());
+        });
 
     connect(&_loadAction, &mv::gui::TriggerAction::triggered, this, [this]() {
         accept();
@@ -148,26 +165,25 @@ void ClusterMeansPlugin::transform()
             return;
         }
 
-        auto parentPoints = mv::Dataset<Points>(parentDataset);
-        QVector<Cluster>& clusters = clusterData->getClusters();
-
         // Compute means and standard deviations
-        auto numDims = parentPoints->getNumDimensions();
-        auto numPoints = parentPoints->getNumPoints();
-        auto numClusters = clusters.size();
+        auto parentPointsDataset    = mv::Dataset<Points>(parentDataset);
+        const auto numDims          = parentPointsDataset->getNumDimensions();
+        const auto numPointsParent  = parentPointsDataset->getNumPoints();
+        QVector<Cluster>& clusters  = clusterData->getClusters();
+        const auto numClusters      = clusters.size();
 
         qDebug() << "ClusterMeans: using " << parentDataset->getGuiName() << " with " << numDims << " dimension";
 
         for (Cluster& cluster : clusters)
         {
-            const auto& indices = cluster.getIndices();
+            const auto& indices         = cluster.getIndices();
             std::vector<float>& average = cluster.getMean();
-            std::vector<float>& stddev = cluster.getStandardDeviation();
+            std::vector<float>& stddev  = cluster.getStandardDeviation();
 
             average.resize(numDims);
             stddev.resize(numDims);
 
-            parentPoints->visitData([this, numPoints, numDims, &indices, &average, &stddev](auto pointData) {
+            parentPointsDataset->visitData([this, numDims, &indices, &average, &stddev](auto pointData) {
                 // averages
                 for (const auto& i: indices) {
                     const auto& values = pointData[i];
@@ -176,9 +192,8 @@ void ClusterMeansPlugin::transform()
                     }
                 }
 
-                for (auto& averageDim : average) {
+                for (auto& averageDim : average)
                     averageDim /= static_cast<float>(indices.size());
-                }
 
                 // standard deviation
                 for (const auto& i : indices) {
@@ -190,39 +205,111 @@ void ClusterMeansPlugin::transform()
                     }
                 }
 
-                for (auto& stddevDim : stddev) {
+                for (auto& stddevDim : stddev)
                     stddevDim = std::sqrt(stddevDim / static_cast<float>(indices.size()));
-                }
 
                 });
 
         }
 
         // Create new output
-        Dataset<Points> meansData = mv::data().createDataset<Points>("Points", parentDataset->getGuiName() + " Means", parentDataset);
+        Dataset<Points> meansData;
+        const auto meansDataName = parentDataset->getGuiName() + " Cluster Means";
 
-        // Get means from clusters
         std::vector<float> means;
-        for (const auto& cluster : clusters)
+
+        auto assignToDirectParent = [&meansData, &meansDataName, &numDims, &parentDataset, &numPointsParent, &clusters, &clusterData](std::vector<float>& means) {
+            Dataset<Points> directParent = clusterData->getParent<Points>();
+            const auto numPointsDirectParent = directParent->getNumPoints();
+
+            meansData = mv::data().createDerivedDataset<Points>(meansDataName, directParent);
+            means.resize(static_cast<size_t>(numDims)* numPointsDirectParent);
+
+            const std::vector<mv::LinkedData>& linkedData = directParent->getLinkedData();
+            bool useLinkedData = !linkedData.empty() && linkedData[0].getTargetDataset() == parentDataset;
+
+            if (useLinkedData)
+            {
+                const std::map<std::uint32_t, std::vector<std::uint32_t>>& linkedMap = linkedData[0].getMapping().getMap();
+
+                HashMap reverseLinkedData;
+                reverseLinkedData.reserve(numPointsParent);
+
+                std::uint32_t localID = 0;
+                for (const auto& [globalID, mappedGlobalIDs] : linkedMap)
+                {
+                    reverseLinkedData.insert({ globalID , { localID } });
+                    localID++;
+                }
+
+                for (const auto& cluster : clusters)
+                {
+                    const std::vector<float>& avgs = cluster.getMean();
+                    const std::vector<std::uint32_t>& idx = cluster.getIndices();
+                    for (const std::uint32_t globalID : idx)
+                    {
+                        if (!reverseLinkedData.contains(globalID))
+                            continue;
+
+                        std::copy(avgs.begin(), avgs.end(), means.data() + reverseLinkedData[globalID] * numDims);
+                    }
+                }
+
+            }
+            else
+            {
+                for (const auto& cluster : clusters)
+                {
+                    const auto& avgs = cluster.getMean();
+                    for (const auto& id : cluster.getIndices())
+                        std::copy(avgs.begin(), avgs.end(), means.data() + id * numDims);
+                }
+            }
+
+            };
+
+        auto assignToSelectedParent = [&meansData, &meansDataName, &numDims, &parentDataset, &numPointsParent, &clusters, &numClusters](std::vector<float>& means) {
+            meansData = mv::data().createDataset<Points>("Points", meansDataName, parentDataset);
+
+            // Get means from clusters
+            for (const auto& cluster : clusters)
+            {
+                const auto& avgs = cluster.getMean();
+                means.insert(means.end(), avgs.begin(), avgs.end());
+            }
+
+            assert(means.size() == numDims * numClusters);
+
+            // Add selection maps
+            mv::SelectionMap selectionMapMeansToParents;
+            auto& mapMeansToParents = selectionMapMeansToParents.getMap();
+
+            for (size_t clusterID = 0; clusterID < numClusters; clusterID++)
+                mapMeansToParents[clusterID] = clusters[clusterID].getIndices();
+
+            meansData->addLinkedData(parentDataset, selectionMapMeansToParents);
+
+            };
+
+        try
         {
-            const auto& avgs = cluster.getMean();
-            means.insert(means.end(), avgs.begin(), avgs.end());
+            qDebug() << "ClusterMeans: creating data set " + meansDataName;
+
+            if (inputDialog.assignToDirectParent())
+                assignToDirectParent(means);
+            else
+                assignToSelectedParent(means);
+
+            // Publish data
+            meansData->setData(std::move(means), numDims);
+            meansData->setDimensionNames(parentPointsDataset->getDimensionNames());
+            events().notifyDatasetDataChanged(meansData);
+
         }
-
-        assert(means.size() == numDims * numClusters);
-
-        // Add selection maps
-        mv::SelectionMap selectionMapMeansToParents;
-        auto& mapMeansToParents = selectionMapMeansToParents.getMap();
-
-        for (size_t clusterID = 0; clusterID < numClusters; clusterID++)
-            mapMeansToParents[clusterID] = clusters[clusterID].getIndices();
-
-        meansData->addLinkedData(parentDataset, selectionMapMeansToParents);
-
-        // Publish data
-        meansData->setData(std::move(means), numDims);
-        events().notifyDatasetDataChanged(meansData);
+        catch (const std::exception& e)
+        {
+            qWarning() << "ClusterMeans: Failed. Caught exception: " << e.what();
+        }
 
     }
 

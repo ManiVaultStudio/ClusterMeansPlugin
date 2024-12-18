@@ -31,9 +31,14 @@ public:
         return _parentsAction.getCurrentDataset();
     }
 
+    bool assignToDirectParent() {
+        return _assignToDirectParentAction.isChecked();
+    }
+
 private:
     mv::gui::DatasetPickerAction    _parentsAction;
     mv::gui::TriggerAction          _loadAction;
+    mv::gui::ToggleAction           _assignToDirectParentAction;
     mv::gui::GroupAction            _groupAction;
 };
 
