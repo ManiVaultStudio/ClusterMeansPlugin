@@ -93,7 +93,7 @@ class ClusterMeansConan(ConanFile):
         qt_cfg = list(qt_path.glob("**/Qt6Config.cmake"))[0]
         qt_dir = qt_cfg.parents[0].as_posix()
 
-        tc.variables["Qt6_ROOT"] = qt_root
+        tc.variables["Qt6_DIR"] = qt_dir
 
         # Use the ManiVault .cmake file to find ManiVault with find_package
         mv_core_root = self.deps_cpp_info["hdps-core"].rootpath
