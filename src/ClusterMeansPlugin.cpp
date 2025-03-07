@@ -31,6 +31,10 @@ using HashMap = ankerl::unordered_dense::map<std::uint32_t, std::uint32_t, HashU
 
 Q_PLUGIN_METADATA(IID "studio.manivault.ClusterMeansPlugin")
 
+// =============================================================================
+// Helper 
+// =============================================================================
+
 SelectInputDataDialog::SelectInputDataDialog(QWidget* parentWidget, const mv::Datasets& parents) :
     QDialog(parentWidget),
     _parentsAction(this, "Dataset"),
@@ -63,6 +67,10 @@ SelectInputDataDialog::SelectInputDataDialog(QWidget* parentWidget, const mv::Da
         accept();
         });
 }
+
+// =============================================================================
+// Plugin 
+// =============================================================================
 
 ClusterMeansPlugin::ClusterMeansPlugin(const PluginFactory* factory) :
     TransformationPlugin(factory)
@@ -339,7 +347,7 @@ mv::gui::PluginTriggerActions ClusterMeansPluginFactory::getPluginTriggerActions
     if (PluginFactory::areAllDatasetsOfTheSameType(datasets, ClusterType)) {
         if (numberOfDatasets >= 1 && datasets.first()->getDataType() == ClusterType) {
 
-            auto pluginTriggerAction = new mv::gui::PluginTriggerAction(const_cast<ClusterMeansPluginFactory*>(this), this, QString("Create Mean Dataset"), QString("Create Mean Dataset"), getIcon(), [this, datasets](mv::gui::PluginTriggerAction& pluginTriggerAction) -> void {
+            auto pluginTriggerAction = new mv::gui::PluginTriggerAction(const_cast<ClusterMeansPluginFactory*>(this), this, QString("Create Mean Dataset"), QString("Create Mean Dataset"), icon(), [this, datasets](mv::gui::PluginTriggerAction& pluginTriggerAction) -> void {
                 for (const auto& dataset : datasets) {
                     auto pluginInstance = dynamic_cast<ClusterMeansPlugin*>(plugins().requestPlugin(getKind()));
 
