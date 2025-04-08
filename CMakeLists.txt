@@ -3,7 +3,9 @@ cmake_minimum_required(VERSION 3.22)
 # -----------------------------------------------------------------------------
 # ClusterMeans Transformation Plugin
 # -----------------------------------------------------------------------------
-PROJECT("ClusterMeans")
+PROJECT("ClusterMeans" 
+        VERSION 1.0.0
+        LANGUAGES C CXX)
 
 # -----------------------------------------------------------------------------
 # CMake Options
@@ -11,14 +13,12 @@ PROJECT("ClusterMeans")
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOMOC ON)
 
-if(MSVC)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /DWIN32 /EHsc /MP /permissive- /Zc:__cplusplus")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MD")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
-endif(MSVC)
-
-include(FetchContent)
+endif()
 
 # -----------------------------------------------------------------------------
 # Dependencies
@@ -27,13 +27,17 @@ find_package(Qt6 COMPONENTS Widgets WebEngineWidgets REQUIRED)
 
 find_package(ManiVault COMPONENTS Core PointData ClusterData CONFIG QUIET)
 
-FetchContent_Declare(
-    unordered_dense
-    GIT_REPOSITORY https://github.com/martinus/unordered_dense.git
-    GIT_TAG v4.5.0
-    GIT_SHALLOW TRUE
-)
-FetchContent_MakeAvailable(unordered_dense)
+if(NOT TARGET unordered_dense::unordered_dense)
+    include(FetchContent)
+    
+    FetchContent_Declare(
+        unordered_dense
+        GIT_REPOSITORY https://github.com/martinus/unordered_dense.git
+        GIT_TAG v4.5.0
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(unordered_dense)
+endif()
 
 # -----------------------------------------------------------------------------
 # Source files
@@ -87,14 +91,15 @@ target_link_libraries(${PROJECT_NAME} PRIVATE unordered_dense::unordered_dense)
 # -----------------------------------------------------------------------------
 # Install the shared plugin library to the "Plugins" folder in the ManiVault install directory
 install(TARGETS ${PROJECT_NAME}
-    RUNTIME DESTINATION Plugins COMPONENT PLUGINS # Windows .dll
-    LIBRARY DESTINATION Plugins COMPONENT PLUGINS # Linux/Mac .so
+    RUNTIME DESTINATION Plugins COMPONENT PLUGIN # Windows .dll
+    LIBRARY DESTINATION Plugins COMPONENT PLUGIN # Linux/Mac .so
 )
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND "${CMAKE_COMMAND}"
         --install ${CMAKE_CURRENT_BINARY_DIR}
         --config $<CONFIGURATION>
+        --component PLUGIN
         --prefix ${ManiVault_INSTALL_DIR}/$<CONFIGURATION>
 )
 
@@ -102,7 +107,7 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 # Miscellaneous
 # -----------------------------------------------------------------------------
 # Automatically set the debug environment (command + working directory) for MSVC
-if(MSVC)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     set_property(TARGET ${PROJECT_NAME} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY $<IF:$<CONFIG:DEBUG>,${ManiVault_INSTALL_DIR}/Debug,$<IF:$<CONFIG:RELWITHDEBINFO>,${ManiVault_INSTALL_DIR}/RelWithDebInfo,${ManiVault_INSTALL_DIR}/Release>>)
     set_property(TARGET ${PROJECT_NAME} PROPERTY VS_DEBUGGER_COMMAND $<IF:$<CONFIG:DEBUG>,"${ManiVault_INSTALL_DIR}/Debug/ManiVault Studio.exe",$<IF:$<CONFIG:RELWITHDEBINFO>,"${ManiVault_INSTALL_DIR}/RelWithDebInfo/ManiVault Studio.exe","${ManiVault_INSTALL_DIR}/Release/ManiVault Studio.exe">>)
 endif()

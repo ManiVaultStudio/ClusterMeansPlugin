@@ -8,7 +8,7 @@ from rules_support import PluginBranchInfo
 
 
 class ClusterMeansConan(ConanFile):
-    """Class to package ClusterMeans using conan
+    """Class to package ClusterMeansPlugin using conan
 
     Packages both RELEASE and DEBUG.
     Uses rules_support (github.com/ManiVaultStudio/rulessupport) to derive
@@ -16,12 +16,12 @@ class ClusterMeansConan(ConanFile):
     as described in https://github.com/ManiVaultStudio/core/wiki/Branch-naming-rules
     """
 
-    name = "ClusterMeans"
+    name = "ClusterMeansPlugin"
     description = (
         "Plugin that computes means of clusters."
     )
     topics = ("ManiVault", "plugin")
-    url = "https://github.com/ManiVaultStudio/ClusterMeans"
+    url = "https://github.com/ManiVaultStudio/ClusterMeansPlugin"
     author = "B. van Lew b.van_lew@lumc.nl"  # conan recipe author
     license = "MIT"
 
@@ -35,7 +35,7 @@ class ClusterMeansConan(ConanFile):
 
     scm = {
         "type": "git",
-        "subfolder": "hdps/ClusterMeans",
+        "subfolder": "hdps/ClusterMeansPlugin",
         "url": "auto",
         "revision": "auto",
     }
@@ -108,7 +108,7 @@ class ClusterMeansConan(ConanFile):
 
     def _configure_cmake(self):
         cmake = CMake(self)
-        cmake.configure(build_script_folder="hdps/ClusterMeans")
+        cmake.configure(build_script_folder="hdps/ClusterMeansPlugin")
         cmake.verbose = True
         return cmake
 
