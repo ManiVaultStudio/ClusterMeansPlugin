@@ -1,0 +1,9 @@
+{
+    "name": "Cluster Means",
+    "version" :  {
+        "plugin" : "1.0.0",
+        "core" : ["1.3"]
+    },
+    "type" : "Transformation",
+    "dependencies": [ "Points", "Cluster" ]
+}

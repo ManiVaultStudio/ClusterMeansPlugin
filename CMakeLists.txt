@@ -46,15 +46,19 @@ endif()
 set(PLUGIN_SOURCES
     src/ClusterMeansPlugin.h
     src/ClusterMeansPlugin.cpp
-    src/ClusterMeansPlugin.json
+)
+
+set(AUX 
+    PluginInfo.json
 )
 
 source_group( Plugin FILES ${PLUGIN_SOURCES})
+source_group( Aux FILES ${AUX})
 
 # -----------------------------------------------------------------------------
 # CMake Target
 # -----------------------------------------------------------------------------
-add_library(${PROJECT_NAME} SHARED ${PLUGIN_SOURCES})
+add_library(${PROJECT_NAME} SHARED ${PLUGIN_SOURCES} ${AUX})
 
 # -----------------------------------------------------------------------------
 # Target include directories
@@ -67,10 +71,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE "${ManiVault_INCLUDE_DIR}")
 # -----------------------------------------------------------------------------
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 
-set_target_properties(${PROJECT_NAME}
-    PROPERTIES
-    FOLDER TransformationPlugins
-)
+mv_handle_plugin_config(${PROJECT_NAME})
 
 # -----------------------------------------------------------------------------
 # Target library linking
