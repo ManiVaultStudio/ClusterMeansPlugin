@@ -1,5 +1,0 @@
-{
-    "name": "Cluster Means",
-    "version": "1.0",
-    "dependencies": [ "Points", "Cluster" ]
-}
