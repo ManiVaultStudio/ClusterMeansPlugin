@@ -29,6 +29,8 @@ using HashUInt32 = ankerl::unordered_dense::hash<std::uint32_t>;
 using DenseSet = ankerl::unordered_dense::set<std::uint32_t, HashUInt32>;
 using HashMap = ankerl::unordered_dense::map<std::uint32_t, std::uint32_t, HashUInt32>;
 
+using namespace mv;
+
 Q_PLUGIN_METADATA(IID "studio.manivault.ClusterMeansPlugin")
 
 // =============================================================================
@@ -72,7 +74,7 @@ SelectInputDataDialog::SelectInputDataDialog(QWidget* parentWidget, const mv::Da
 // Plugin 
 // =============================================================================
 
-ClusterMeansPlugin::ClusterMeansPlugin(const PluginFactory* factory) :
+ClusterMeansPlugin::ClusterMeansPlugin(const mv::plugin::PluginFactory* factory) :
     TransformationPlugin(factory)
 {
 }
@@ -328,7 +330,7 @@ void ClusterMeansPlugin::transform()
 // Plugin Factory 
 // =============================================================================
 
-TransformationPlugin* ClusterMeansPluginFactory::produce()
+mv::plugin::TransformationPlugin* ClusterMeansPluginFactory::produce()
 {
     return new ClusterMeansPlugin(this);
 }
