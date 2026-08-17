@@ -197,7 +197,7 @@ void ClusterMeansPlugin::transform()
                 // averages
                 for (const auto& i: indices) {
                     const auto& values = pointData[i];
-                    for (int64_t dim = 0; dim < numDims; ++dim) {
+                    for (uint64_t dim = 0; dim < numDims; ++dim) {
                         average[dim] += values[dim];
                     }
                 }
@@ -209,7 +209,7 @@ void ClusterMeansPlugin::transform()
                 for (const auto& i : indices) {
                     const auto& values = pointData[i];
 
-                    for (int64_t dim = 0; dim < numDims; ++dim) {
+                    for (uint64_t dim = 0; dim < numDims; ++dim) {
                         const auto centered = values[dim] - average[dim];
                         stddev[dim] += (centered * centered);
                     }
